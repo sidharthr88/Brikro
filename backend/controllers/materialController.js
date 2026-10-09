@@ -1,6 +1,7 @@
-
 const mongoose = require("mongoose");
 const Material = require("../models/Material");
+const sendEmail = require("../config/email");
+const User = require("../models/User");
 
 const createMaterial = async (req, res) => {
     try {
@@ -12,6 +13,7 @@ const createMaterial = async (req, res) => {
             quantity,
             condition,
             location,
+            locationCoordinates,
             images
         } = req.body;
 
@@ -37,10 +39,28 @@ const createMaterial = async (req, res) => {
             quantity,
             condition,
             location,
+            locationCoordinates,
             images: images || [],
             seller: req.user.id
         });
+       const seller = await User.findById(req.user.id);
 
+if (seller) {
+    try {
+        await sendEmail(
+            seller.email,
+            "Your BRIKRO Listing is Live",
+            `
+                <h2>Listing Created Successfully</h2>
+                <p>Your material listing "${material.title}" has been created successfully.</p>
+                <p>Buyers can now view your listing on BRIKRO.</p>
+                <p>Smart Supplies. Smart Savings. Smarter Sites.</p>
+            `
+        );
+            } catch (emailError) {
+                console.log("Listing email failed:", emailError.message);
+            }
+        }
         return res.status(201).json({
             message: "Material created successfully",
             material
@@ -56,10 +76,30 @@ const createMaterial = async (req, res) => {
 
 const getAllMaterials = async (req, res) => {
     try {
-        const materials = await Material.find();
+        const { category, location } = req.query;
+        const filter = {};
+
+        if (category) {
+            filter.category = category;
+        }
+
+        if (location) {
+            filter.location = location;
+        }
+
+        const materials = await Material.find(filter)
+            .populate({
+                path: "seller",
+                select: "name email isActive",
+                match: { isActive: true }
+            });
+
+        const activeMaterials = materials.filter(
+            (material) => material.seller
+        );
 
         return res.status(200).json({
-            materials
+            materials: activeMaterials
         });
 
     } catch (error) {
@@ -69,6 +109,24 @@ const getAllMaterials = async (req, res) => {
         });
     }
 };
+const getMyMaterials = async (req, res) => {
+    try {
+        const materials = await Material.find({
+            seller: req.user.id
+        });
+
+        return res.status(200).json({
+            materials
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Failed to fetch your materials",
+            error: error.message
+        });
+    }
+};
+
 const getMaterialById = async (req, res) => {
     try {
          if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -120,6 +178,7 @@ const updateMaterial = async (req, res) => {
             quantity,
             condition,
             location,
+            locationCoordinates,
             images
         } = req.body;
 
@@ -130,6 +189,7 @@ const updateMaterial = async (req, res) => {
         material.quantity = quantity ?? material.quantity;
         material.condition = condition ?? material.condition;
         material.location = location ?? material.location;
+        material.locationCoordinates = locationCoordinates ?? material.locationCoordinates;
         material.images = images ?? material.images;
 
         await material.save();
@@ -177,4 +237,4 @@ const deleteMaterial = async (req, res) => {
 };
 
 
-module.exports = { createMaterial, getAllMaterials, getMaterialById, updateMaterial, deleteMaterial};
+module.exports = { createMaterial, getAllMaterials, getMyMaterials, getMaterialById, updateMaterial, deleteMaterial};

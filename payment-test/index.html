@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BRIKRO Payment Test</title>
+</head>
+<body>
+
+    <h2>BRIKRO Payment Test</h2>
+
+    <button onclick="startPayment()">
+        Pay ₹100
+    </button>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <script>
+        function startPayment() {
+
+            const options = {
+                key: "rzp_test_TkhDFqHlQSMZne",
+
+                amount: 10000,
+
+                currency: "INR",
+
+                name: "BRIKRO",
+
+                description: "Construction Material Purchase",
+
+                order_id: "order_TkiqBL3jUOPTNJ",
+
+                handler: async function (response) {
+
+    console.log("Payment successful");
+    console.log(response);
+
+    const verifyResponse = await fetch(
+        "http://localhost:5000/api/payments/verify/6ac4cf14e8d0ded1b64af13c",
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYmQ1ZmY0ZGQ0MjQxMzFiNTMyYTc5NyIsInJvbGUiOiJidXllciIsImlhdCI6MTc5MTMxMDI4NiwiZXhwIjoxNzkxMzk2Njg2fQ.6X-z85yBNOF1lXglt14QY9NAibKJvI7TR47gwAaK89I"
+            },
+
+            body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+            })
+        }
+    );
+
+    const result = await verifyResponse.json();
+
+    console.log("Verification result:", result);
+
+    if (verifyResponse.ok) {
+        alert("Payment verified successfully!");
+    } else {
+        alert("Payment verification failed!");
+    }
+},
+
+                theme: {
+                    color: "#3399cc"
+                }
+            };
+
+            const razorpay = new Razorpay(options);
+
+            razorpay.open();
+        }
+    </script>
+
+</body>
+</html>

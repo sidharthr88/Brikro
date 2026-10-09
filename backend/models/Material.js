@@ -21,7 +21,7 @@ const materialSchema = new mongoose.Schema({
     quantity: {
     type: Number,
     required: true,
-    min: 1
+    min: 0
     },
     condition: {
     type: String,
@@ -31,6 +31,14 @@ const materialSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+    },
+    locationCoordinates: {
+    latitude: {
+    type: Number,
+    },
+    longitude: {
+    type: Number,
+    },
     },
     images: {
     type: [String],

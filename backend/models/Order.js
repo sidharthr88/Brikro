@@ -8,6 +8,12 @@ const orderSchema = new mongoose.Schema(
             required: true
         },
 
+        transporter: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Transporter",
+            default: null
+        },
+
         material: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Material",
@@ -26,9 +32,29 @@ const orderSchema = new mongoose.Schema(
             min: 0
         },
 
+        transportFee: {
+        type: Number,
+        default: 0,
+        },
+
         deliveryAddress: {
             type: String,
-            required: true
+            default: ""
+        },
+
+        deliveryMethod: {
+            type: String,
+            enum: ["transporter", "self_pickup"],
+            default: "self_pickup",
+        },
+
+        deliveryLocation: {
+            latitude: {
+                type: Number
+            },
+            longitude: {
+                type: Number
+            }
         },
 
         status: {
@@ -36,7 +62,8 @@ const orderSchema = new mongoose.Schema(
             enum: [
                 "pending",
                 "confirmed",
-                "shipped",
+                "picked_up",
+                "in_transit",
                 "delivered",
                 "cancelled"
             ],
@@ -51,6 +78,11 @@ const orderSchema = new mongoose.Schema(
                 "failed"
             ],
             default: "pending"
+        },
+
+        razorpayOrderId: {
+            type: String,
+            default: ""
         }
     },
     {
