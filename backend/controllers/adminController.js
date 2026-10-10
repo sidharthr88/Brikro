@@ -147,6 +147,55 @@ const updateUserStatus = async (req, res) => {
         });
     }
 };
+
+const updateApprovalStatus = async (req, res) => {
+    try {
+        const { approvalStatus } = req.body;
+
+        if (!["approved", "rejected"].includes(approvalStatus)) {
+            return res.status(400).json({
+                message: "approvalStatus must be approved or rejected"
+            });
+        }
+
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        if (!["seller", "transporter"].includes(user.role)) {
+            return res.status(400).json({
+                message: "Only sellers and transporters can be approved or rejected"
+            });
+        }
+
+        user.approvalStatus = approvalStatus;
+        await user.save();
+
+        return res.status(200).json({
+            message: `User ${approvalStatus} successfully`,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                approvalStatus: user.approvalStatus
+            }
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Failed to update approval status",
+            error: error.message
+        });
+    }
+};
+
+
+
 const deleteMaterial = async (req, res) => {
     try {
         const material = await Material.findById(req.params.id);
@@ -246,4 +295,4 @@ const createTransporter = async (req, res) => {
         });
     }
 };
-module.exports = { getAllUsers, getAllMaterials, getAllOrders, getAllTransporters, getDashboardStats, updateUserStatus, deleteMaterial, createTransporter };
+module.exports = { getAllUsers, getAllMaterials, getAllOrders, getAllTransporters, getDashboardStats, updateUserStatus, updateApprovalStatus, deleteMaterial, createTransporter };

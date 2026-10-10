@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {BrowserRouter,Routes,Route,Navigate,useLocation,} from "react-router-dom";
 
 import Intro from "./Intro";
 import Navbar from "./components/Navbar";
@@ -27,6 +27,10 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminTransporters from "./pages/admin/AdminTransporters";
 import AdminLayout from "./pages/admin/AdminLayout";
 
+import TransporterDashboard from "./pages/transporter/Dashboard";
+import AvailableDeliveries from "./pages/transporter/AvailableDeliveries";
+import MyDeliveries from "./pages/transporter/MyDeliveries";
+
 import Footer from "./components/Footer";
 
 const ProtectedRoute = ({ children }) => {
@@ -34,11 +38,7 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation();
 
   if (!token) {
-    return (
-      <LoginRequired
-        from={location}
-      />
-    );
+    return <LoginRequired from={location} />;
   }
 
   return children;
@@ -51,13 +51,40 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  const payload = JSON.parse(atob(token.split(".")[1]));
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
 
-  if (payload.role !== "admin") {
-    return <Navigate to="/materials" replace />;
+    if (payload.role !== "admin") {
+      return <Navigate to="/materials" replace />;
+    }
+
+    return children;
+  } catch (error) {
+    localStorage.removeItem("token");
+    return <Navigate to="/login" replace />;
+  }
+};
+
+const TransporterRoute = ({ children }) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
   }
 
-  return children;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+
+   
+    if (payload.role !== "transporter") {
+      return <Navigate to="/materials" replace />;
+    }
+
+    return children;
+  } catch (error) {
+    localStorage.removeItem("token");
+    return <Navigate to="/login" replace />;
+  }
 };
 
 function App() {
@@ -80,7 +107,8 @@ function App() {
               <Route path="/materials/:id" element={<MaterialDetails />} />
 
               <Route
-                path="/order" element={
+                path="/order"
+                element={
                   <ProtectedRoute>
                     <Order />
                   </ProtectedRoute>
@@ -88,7 +116,8 @@ function App() {
               />
 
               <Route
-                path="/sell" element={
+                path="/sell"
+                element={
                   <ProtectedRoute>
                     <CreateListing />
                   </ProtectedRoute>
@@ -96,7 +125,8 @@ function App() {
               />
 
               <Route
-                path="/my-listings" element={
+                path="/my-listings"
+                element={
                   <ProtectedRoute>
                     <MyListings />
                   </ProtectedRoute>
@@ -104,7 +134,8 @@ function App() {
               />
 
               <Route
-                path="/edit-listing/:id" element={
+                path="/edit-listing/:id"
+                element={
                   <ProtectedRoute>
                     <EditListing />
                   </ProtectedRoute>
@@ -117,7 +148,8 @@ function App() {
               <Route path="/reset-password/:token" element={<ResetPassword />} />
 
               <Route
-                path="/my-orders" element={
+                path="/my-orders"
+                element={
                   <ProtectedRoute>
                     <MyOrders />
                   </ProtectedRoute>
@@ -125,7 +157,8 @@ function App() {
               />
 
               <Route
-                path="/orders/:id" element={
+                path="/orders/:id"
+                element={
                   <ProtectedRoute>
                     <OrderDetails />
                   </ProtectedRoute>
@@ -141,33 +174,45 @@ function App() {
                 }
               >
                 <Route index element={<AdminDashboard />} />
-
-                <Route
-                  path="users"
-                  element={<AdminUsers />}
-                />
-
-                <Route
-                  path="materials"
-                  element={<AdminMaterials />}
-                />
-
-                <Route
-                  path="orders"
-                  element={<AdminOrders />}
-                />
-
-                <Route
-                  path="transporters"
-                  element={<AdminTransporters />}
-                />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="materials" element={<AdminMaterials />} />
+                <Route path="orders" element={<AdminOrders />} />
+                <Route path="transporters" element={<AdminTransporters />} />
               </Route>
+
               <Route
                 path="/seller-orders"
                 element={
                   <ProtectedRoute>
                     <SellerOrders />
                   </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/transporter/dashboard"
+                element={
+                  <TransporterRoute>
+                    <TransporterDashboard />
+                  </TransporterRoute>
+                }
+              />
+
+              <Route
+                path="/transporter/available-deliveries"
+                element={
+                  <TransporterRoute>
+                    <AvailableDeliveries />
+                  </TransporterRoute>
+                }
+              />
+
+              <Route
+                path="/transporter/my-deliveries"
+                element={
+                  <TransporterRoute>
+                    <MyDeliveries />
+                  </TransporterRoute>
                 }
               />
             </Routes>

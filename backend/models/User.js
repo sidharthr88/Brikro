@@ -21,10 +21,23 @@ const userSchema = new mongoose.Schema(
             required: true
         },
 
+       
         role: {
             type: String,
             enum: ["buyer", "seller", "transporter", "admin"],
             default: "buyer"
+        },
+
+        approvalStatus: {
+            type: String,
+            enum: ["pending", "approved", "rejected"],
+            default: function () {
+                if (this.role === "seller" || this.role === "transporter") {
+                    return "pending";
+                }
+
+                return "approved";
+            }
         },
 
         phone: {

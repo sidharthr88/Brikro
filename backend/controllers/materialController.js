@@ -3,6 +3,7 @@ const Material = require("../models/Material");
 const sendEmail = require("../config/email");
 const User = require("../models/User");
 
+
 const createMaterial = async (req, res) => {
     try {
         const {
@@ -31,6 +32,32 @@ const createMaterial = async (req, res) => {
             });
         }
 
+        const seller = await User.findById(req.user.id);
+
+        if (!seller) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        if (seller.role !== "seller") {
+            return res.status(403).json({
+                message: "Only sellers can create material listings"
+            });
+        }
+
+        if (!seller.isActive) {
+            return res.status(403).json({
+                message: "Your account is inactive"
+            });
+        }
+
+        if (seller.approvalStatus !== "approved") {
+            return res.status(403).json({
+                message: "Your seller account is awaiting approval. You can create listings after admin approval."
+            });
+        }
+
         const material = await Material.create({
             title,
             description,
@@ -43,24 +70,22 @@ const createMaterial = async (req, res) => {
             images: images || [],
             seller: req.user.id
         });
-       const seller = await User.findById(req.user.id);
 
-if (seller) {
-    try {
-        await sendEmail(
-            seller.email,
-            "Your BRIKRO Listing is Live",
-            `
-                <h2>Listing Created Successfully</h2>
-                <p>Your material listing "${material.title}" has been created successfully.</p>
-                <p>Buyers can now view your listing on BRIKRO.</p>
-                <p>Smart Supplies. Smart Savings. Smarter Sites.</p>
-            `
-        );
-            } catch (emailError) {
-                console.log("Listing email failed:", emailError.message);
-            }
+        try {
+            await sendEmail(
+                seller.email,
+                "Your BRIKRO Listing is Live",
+                `
+                    <h2>Listing Created Successfully</h2>
+                    <p>Your material listing "${material.title}" has been created successfully.</p>
+                    <p>Buyers can now view your listing on BRIKRO.</p>
+                    <p>Smart Supplies. Smart Savings. Smarter Sites.</p>
+                `
+            );
+        } catch (emailError) {
+            console.log("Listing email failed:", emailError.message);
         }
+
         return res.status(201).json({
             message: "Material created successfully",
             material
@@ -90,8 +115,12 @@ const getAllMaterials = async (req, res) => {
         const materials = await Material.find(filter)
             .populate({
                 path: "seller",
-                select: "name email isActive",
-                match: { isActive: true }
+                select: "name email isActive approvalStatus",
+                match: {
+                    isActive: true,
+                    approvalStatus: "approved",
+                    role: "seller"
+                }
             });
 
         const activeMaterials = materials.filter(
