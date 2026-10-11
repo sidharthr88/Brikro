@@ -1,5 +1,7 @@
-import { useState } from "react";
-import {BrowserRouter,Routes,Route,Navigate,useLocation,} from "react-router-dom";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Typography } from "@mui/material";
+import api from "./api/axios";
 
 import Intro from "./Intro";
 import Navbar from "./components/Navbar";
@@ -19,6 +21,7 @@ import MyListings from "./pages/MyListings";
 import EditListing from "./pages/EditListing";
 import OrderDetails from "./pages/OrderDetails";
 import SellerOrders from "./pages/SellerOrders";
+import OrderInvoice from "./pages/OrderInvoice";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -30,6 +33,7 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import TransporterDashboard from "./pages/transporter/Dashboard";
 import AvailableDeliveries from "./pages/transporter/AvailableDeliveries";
 import MyDeliveries from "./pages/transporter/MyDeliveries";
+import TransporterEntry from "./pages/transporter/TransporterEntry";
 
 import Footer from "./components/Footer";
 
@@ -59,7 +63,7 @@ const AdminRoute = ({ children }) => {
     }
 
     return children;
-  } catch (error) {
+  } catch {
     localStorage.removeItem("token");
     return <Navigate to="/login" replace />;
   }
@@ -67,24 +71,69 @@ const AdminRoute = ({ children }) => {
 
 const TransporterRoute = ({ children }) => {
   const token = localStorage.getItem("token");
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchUser = async () => {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await api.get("/auth/me");
+
+        if (active) {
+          setUser(response.data.user);
+        }
+      } catch {
+        if (active) {
+          localStorage.removeItem("token");
+          setUser(null);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchUser();
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-
-   
-    if (payload.role !== "transporter") {
-      return <Navigate to="/materials" replace />;
-    }
-
-    return children;
-  } catch (error) {
-    localStorage.removeItem("token");
-    return <Navigate to="/login" replace />;
+  if (loading) {
+    return (
+      <Typography sx={{ p: 4 }}>
+        Checking transporter access...
+      </Typography>
+    );
   }
+
+  const isApprovedTransporter =
+    user?.transporterStatus === "approved" ||
+    (user?.role === "transporter" &&
+      user?.approvalStatus === "approved");
+
+  if (!isApprovedTransporter) {
+    return <Navigate to="/transporter" replace />;
+  }
+
+  if (!user?.isActive) {
+    return <Navigate to="/materials" replace />;
+  }
+
+  return children;
 };
 
 function App() {
@@ -213,6 +262,24 @@ function App() {
                   <TransporterRoute>
                     <MyDeliveries />
                   </TransporterRoute>
+                }
+              />
+              
+              <Route
+                path="/orders/:id/invoice"
+                element={
+                  <ProtectedRoute>
+                    <OrderInvoice />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/transporter"
+                element={
+                  <ProtectedRoute>
+                    <TransporterEntry />
+                  </ProtectedRoute>
                 }
               />
             </Routes>

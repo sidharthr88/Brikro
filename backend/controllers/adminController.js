@@ -24,7 +24,7 @@ const getAllUsers = async (req, res) => {
 const getAllMaterials = async (req, res) => {
     try {
         const materials = await Material.find()
-            .populate("seller", "name email");
+            .populate("seller", "name email phone");
 
         res.status(200).json({
             count: materials.length,
@@ -62,13 +62,15 @@ const getAllOrders = async (req, res) => {
 const getAllTransporters = async (req, res) => {
     try {
         const transporters = await Transporter.find()
-            .populate("user", "name email isActive");
+            .populate(
+                "user",
+                "name email phone isActive role approvalStatus transporterStatus transporterAdminRemark"
+            );
 
         res.status(200).json({
             count: transporters.length,
             transporters
         });
-
     } catch (error) {
         res.status(500).json({
             message: "Failed to fetch transporters",
@@ -150,11 +152,23 @@ const updateUserStatus = async (req, res) => {
 
 const updateApprovalStatus = async (req, res) => {
     try {
-        const { approvalStatus } = req.body;
+        const { approvalStatus, adminRemark = "" } = req.body;
 
         if (!["approved", "rejected"].includes(approvalStatus)) {
             return res.status(400).json({
                 message: "approvalStatus must be approved or rejected"
+            });
+        }
+
+        if (typeof adminRemark !== "string") {
+            return res.status(400).json({
+                message: "Admin remark must be text"
+            });
+        }
+
+        if (approvalStatus === "rejected" && !adminRemark.trim()) {
+            return res.status(400).json({
+                message: "Please provide a reason when rejecting an application"
             });
         }
 
@@ -166,35 +180,141 @@ const updateApprovalStatus = async (req, res) => {
             });
         }
 
-        if (!["seller", "transporter"].includes(user.role)) {
+        const isTransporterApplication =
+            user.transporterStatus === "pending" ||
+            user.transporterStatus === "rejected" ||
+            user.transporterStatus === "approved" ||
+            user.role === "transporter";
+
+        const isSellerApplication =
+            user.sellerStatus === "pending" ||
+            user.sellerStatus === "rejected" ||
+            user.role === "seller";
+
+        if (!isTransporterApplication && !isSellerApplication) {
             return res.status(400).json({
-                message: "Only sellers and transporters can be approved or rejected"
+                message: "No seller or transporter application found for this user"
             });
         }
 
-        user.approvalStatus = approvalStatus;
+        if (isTransporterApplication) {
+            const transporter = await Transporter.findOne({
+                user: user._id
+            });
+
+            if (!transporter) {
+                return res.status(400).json({
+                    message: "Transporter profile not found"
+                });
+            }
+
+            user.transporterStatus = approvalStatus;
+            user.transporterAdminRemark =
+                approvalStatus === "rejected" ? adminRemark.trim() : "";
+
+            if (user.role === "transporter") {
+                user.approvalStatus = approvalStatus;
+            }
+        } else {
+            user.sellerStatus = approvalStatus;
+
+            if (user.role === "seller") {
+                user.approvalStatus = approvalStatus;
+            }
+        }
+
         await user.save();
 
         return res.status(200).json({
-            message: `User ${approvalStatus} successfully`,
+            message: `Application ${approvalStatus} successfully`,
             user: {
                 id: user._id,
                 name: user.name,
                 email: user.email,
                 role: user.role,
-                approvalStatus: user.approvalStatus
+                approvalStatus: user.approvalStatus,
+                sellerStatus: user.sellerStatus,
+                transporterStatus: user.transporterStatus,
+                transporterAdminRemark: user.transporterAdminRemark
             }
         });
-
     } catch (error) {
         return res.status(500).json({
-            message: "Failed to update approval status",
+            message: "Failed to update application status",
             error: error.message
         });
     }
 };
 
+const reviewMaterial = async (req, res) => {
+    try {
+        const { approvalStatus, adminRemark = "" } = req.body;
 
+        if (!["approved", "rejected"].includes(approvalStatus)) {
+            return res.status(400).json({
+                message: "approvalStatus must be approved or rejected"
+            });
+        }
+
+        if (
+            typeof adminRemark !== "string" ||
+            (approvalStatus === "rejected" && !adminRemark.trim())
+        ) {
+            return res.status(400).json({
+                message: "Please provide an admin remark when rejecting a listing"
+            });
+        }
+
+        if (!require("mongoose").Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                message: "Invalid material ID"
+            });
+        }
+
+        const material = await Material.findById(req.params.id)
+            .populate(
+                "seller",
+                "name email role isActive sellerStatus transporterStatus approvalStatus"
+            );
+
+        if (!material) {
+            return res.status(404).json({
+                message: "Material not found"
+            });
+        }
+
+        const seller = material.seller;
+
+        if (
+            approvalStatus === "approved" &&
+            (!seller || !seller.isActive)
+        ) {
+            return res.status(400).json({
+                message: "Cannot approve a listing because the seller account is missing or inactive"
+            });
+        }
+
+        material.approvalStatus = approvalStatus;
+        material.adminRemark = adminRemark.trim();
+        material.reviewedBy = req.user.id;
+        material.reviewedAt = new Date();
+
+        await material.save();
+
+        return res.status(200).json({
+            message: approvalStatus === "approved"
+                ? "Material listing approved successfully"
+                : "Material listing rejected successfully",
+            material
+        });
+    } catch (error) {
+        console.error("REVIEW MATERIAL ERROR:", error);
+
+        return res.status(500).json({
+            message: "Failed to review material listing"
+        });
+    }
+};
 
 const deleteMaterial = async (req, res) => {
     try {
@@ -295,4 +415,4 @@ const createTransporter = async (req, res) => {
         });
     }
 };
-module.exports = { getAllUsers, getAllMaterials, getAllOrders, getAllTransporters, getDashboardStats, updateUserStatus, updateApprovalStatus, deleteMaterial, createTransporter };
+module.exports = { getAllUsers, getAllMaterials, getAllOrders, getAllTransporters, getDashboardStats, updateUserStatus, updateApprovalStatus, deleteMaterial, createTransporter, reviewMaterial };

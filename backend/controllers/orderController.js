@@ -3,6 +3,12 @@ const Material = require("../models/Material");
 const sendEmail = require("../config/email");
 const User = require("../models/User");
 
+const {
+    generateOtp,
+    hashOtp,
+    OTP_EXPIRY_MINUTES
+} = require("../utils/otp");
+
 const calculateTransportCharge = (category, quantity) => {
     const heavyMaterials = ["Steel", "Pipes", "Wood"];
 
@@ -279,6 +285,7 @@ const cancelOrder = async (req, res) => {
     }
 };
 
+
 const updateOrderStatus = async (req, res) => {
     try {
         const { status } = req.body;
@@ -305,42 +312,44 @@ const updateOrderStatus = async (req, res) => {
             });
         }
 
-        const validTransitions = {
-            pending: ["confirmed", "cancelled"],
-            confirmed: ["picked_up", "delivered", "cancelled"],
-            picked_up: ["in_transit"],
-            in_transit: ["delivered"],
-            delivered: [],
-            cancelled: []
-        };
+        let allowedStatuses = [];
 
-        if (
-            !validTransitions[order.status] ||
-            !validTransitions[order.status].includes(status)
+        if (order.status === "pending") {
+            allowedStatuses = ["confirmed", "cancelled"];
+        } else if (
+            order.status === "confirmed" &&
+            order.deliveryMethod === "self_pickup"
         ) {
+            allowedStatuses = ["delivered", "cancelled"];
+        }
+
+        if (!allowedStatuses.includes(status)) {
             return res.status(400).json({
-                message: `Cannot change order status from ${order.status} to ${status}`
+                message: `Cannot change order status from ${order.status} to ${status} through the seller endpoint`
             });
         }
 
         order.status = status;
-
         await order.save();
 
-        const buyer = await User.findById(order.buyer);
+        try {
+            const buyer = await User.findById(order.buyer);
 
-        if (buyer) {
-            await sendEmail(
-                buyer.email,
-                `BRIKRO Order ${status}`,
-                `
-                    <h2>Order Status Updated</h2>
-                    <p>Hello ${buyer.name},</p>
-                    <p>Your order status has been updated to <strong>${status}</strong>.</p>
-                    <p>You can log in to BRIKRO to view your order details.</p>
-                    <p>Smart Supplies. Smart Savings. Smarter Sites.</p>
-                `
-            );
+            if (buyer) {
+                await sendEmail(
+                    buyer.email,
+                    `BRIKRO Order ${status}`,
+                    `
+                        <h2>Order Status Updated</h2>
+                        <p>Hello ${buyer.name},</p>
+                        <p>Your order status has been updated to <strong>${status}</strong>.</p>
+                        <p>You can log in to BRIKRO to view your order details.</p>
+                        <p>Smart Supplies. Smart Savings. Smarter Sites.</p>
+                    `
+                );
+            }
+        } catch (emailError) {
+            console.error("ORDER STATUS EMAIL FAILED");
         }
 
         return res.status(200).json({
@@ -349,9 +358,10 @@ const updateOrderStatus = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("UPDATE ORDER STATUS ERROR:", error);
+
         return res.status(500).json({
-            message: "Failed to update order status",
-            error: error.message
+            message: "Failed to update order status"
         });
     }
 };
@@ -405,4 +415,55 @@ const calculateTransportFee = async (req, res) => {
     }
 };
 
-module.exports = {createOrder,getMyOrders,getSellerOrders,getOrderById,cancelOrder,updateOrderStatus,calculateTransportFee};
+const getOrderInvoice = async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id)
+            .populate("buyer", "name email phone address")
+            .populate("material", "title price category location")
+            .lean();
+
+        if (!order) {
+            return res.status(404).json({
+                message: "Order not found"
+            });
+        }
+
+        if (
+            !order.buyer ||
+            order.buyer._id.toString() !== req.user.id
+        ) {
+            return res.status(403).json({
+                message: "You can only access your own invoice"
+            });
+        }
+
+        const materialAmount = order.totalAmount - (order.transportFee || 0);
+
+        return res.status(200).json({
+            invoice: {
+                invoiceNumber: `BRK-${order._id.toString()}`,
+                orderId: order._id,
+                orderDate: order.createdAt,
+                buyer: order.buyer,
+                material: order.material,
+                quantity: order.quantity,
+                materialAmount,
+                transportFee: order.transportFee || 0,
+                amountPaidToBrikro:
+                    order.paymentStatus === "paid" ? materialAmount : 0,
+                paymentStatus: order.paymentStatus,
+                orderStatus: order.status,
+                deliveryMethod: order.deliveryMethod,
+                deliveryAddress: order.deliveryAddress
+            }
+        });
+    } catch (error) {
+        console.error("GET ORDER INVOICE ERROR:", error);
+
+        return res.status(500).json({
+            message: "Failed to generate invoice"
+        });
+    }
+};
+
+module.exports = {createOrder,getMyOrders,getSellerOrders,getOrderById,cancelOrder,updateOrderStatus,calculateTransportFee,getOrderInvoice};

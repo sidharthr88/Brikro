@@ -1,13 +1,17 @@
+
 import { useCallback, useEffect, useState } from "react";
-import {Alert,Box,Button,CircularProgress,Container,Paper,Typography,} from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Container,
+  Paper,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-
-const nextStatus = {
-  confirmed: { value: "picked_up", label: "Mark as Picked Up" },
-  picked_up: { value: "in_transit", label: "Mark as In Transit" },
-  in_transit: { value: "delivered", label: "Mark as Delivered" },
-};
 
 const statusLabel = {
   confirmed: "Accepted",
@@ -25,6 +29,7 @@ function MyDeliveries() {
   const [updatingId, setUpdatingId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [otpValues, setOtpValues] = useState({});
 
   const fetchDeliveries = useCallback(async () => {
     setLoading(true);
@@ -35,7 +40,8 @@ function MyDeliveries() {
       setDeliveries(response.data.deliveries || []);
     } catch (err) {
       setError(
-        err.response?.data?.message || "Failed to load your deliveries."
+        err.response?.data?.message ||
+          "Failed to load your deliveries."
       );
     } finally {
       setLoading(false);
@@ -45,6 +51,105 @@ function MyDeliveries() {
   useEffect(() => {
     fetchDeliveries();
   }, [fetchDeliveries]);
+
+  const handleResendPickupOtp = async (orderId) => {
+    setUpdatingId(orderId);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await api.post(
+        `/transporters/delivery/${orderId}/resend-pickup-otp`
+      );
+
+      setSuccess(
+        response.data.message ||
+          "A fresh pickup OTP has been sent to the seller."
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to resend pickup OTP."
+      );
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
+  const handleCancelDelivery = async (orderId) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this delivery? It will become available for another transporter."
+    );
+
+    if (!confirmed) return;
+
+    setUpdatingId(orderId);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await api.put(
+        `/transporters/delivery/${orderId}/cancel`
+      );
+
+      setSuccess(
+        response.data.message || "Delivery cancelled successfully."
+      );
+
+      setOtpValues((current) => ({
+        ...current,
+        [orderId]: "",
+      }));
+
+      await fetchDeliveries();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to cancel delivery."
+      );
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
+  const handleOtpVerification = async (orderId, type) => {
+    const otp = otpValues[orderId] || "";
+
+    if (!/^\d{6}$/.test(otp)) {
+      setError("Enter the six-digit OTP.");
+      setSuccess("");
+      return;
+    }
+
+    setUpdatingId(orderId);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await api.put(
+        `/transporters/delivery/${orderId}/verify-${type}`,
+        { otp }
+      );
+
+      setSuccess(
+        response.data.message || "OTP verified successfully."
+      );
+
+      setOtpValues((current) => ({
+        ...current,
+        [orderId]: "",
+      }));
+
+      await fetchDeliveries();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "OTP verification failed."
+      );
+    } finally {
+      setUpdatingId("");
+    }
+  };
 
   const handleStatusUpdate = async (orderId, status) => {
     setUpdatingId(orderId);
@@ -57,9 +162,10 @@ function MyDeliveries() {
         { status }
       );
 
-      setSuccess(response.data.message || "Delivery status updated.");
+      setSuccess(
+        response.data.message || "Delivery status updated."
+      );
 
-      // Refresh to display the latest status returned by the backend.
       await fetchDeliveries();
     } catch (err) {
       setError(
@@ -69,6 +175,47 @@ function MyDeliveries() {
     } finally {
       setUpdatingId("");
     }
+  };
+
+  const handleOtpChange = (orderId, value) => {
+    setOtpValues((current) => ({
+      ...current,
+      [orderId]: value.replace(/\D/g, "").slice(0, 6),
+    }));
+  };
+
+  const actionButtonStyles = {
+    backgroundColor: "#FF6B00",
+    color: "#FFFFFF",
+    fontWeight: 700,
+    px: 3,
+    py: 1.2,
+    "&:hover": {
+      backgroundColor: "#E85F00",
+    },
+    "&.Mui-disabled": {
+      backgroundColor: "#75401F",
+      color: "#DDDDDD",
+    },
+  };
+
+  const otpFieldStyles = {
+    "& .MuiOutlinedInput-root": {
+      backgroundColor: "#202020",
+      color: "#FFFFFF",
+      "& fieldset": {
+        borderColor: "#555555",
+      },
+      "&:hover fieldset": {
+        borderColor: "#FF6B00",
+      },
+      "&.Mui-focused fieldset": {
+        borderColor: "#FF6B00",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: "#B0B0B0",
+    },
   };
 
   return (
@@ -128,7 +275,13 @@ function MyDeliveries() {
         )}
 
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 10 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              py: 10,
+            }}
+          >
             <CircularProgress sx={{ color: "#FF6B00" }} />
           </Box>
         ) : deliveries.length === 0 ? (
@@ -155,22 +308,25 @@ function MyDeliveries() {
 
             <Button
               variant="contained"
-              onClick={() => navigate("/transporter/available-deliveries")}
-              sx={{
-                backgroundColor: "#FF6B00",
-                color: "#FFFFFF",
-                fontWeight: 700,
-                "&:hover": { backgroundColor: "#E85F00" },
-              }}
+              onClick={() =>
+                navigate("/transporter/available-deliveries")
+              }
+              sx={actionButtonStyles}
             >
               Find Deliveries
             </Button>
           </Paper>
         ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
+          >
             {deliveries.map((delivery) => {
               const currentStatus = delivery.status;
-              const action = nextStatus[currentStatus];
+              const isUpdating = updatingId === delivery._id;
 
               return (
                 <Paper
@@ -196,9 +352,14 @@ function MyDeliveries() {
 
                   <Typography
                     variant="h5"
-                    sx={{ color: "#FFFFFF", fontWeight: 800, mb: 2 }}
+                    sx={{
+                      color: "#FFFFFF",
+                      fontWeight: 800,
+                      mb: 2,
+                    }}
                   >
-                    {delivery.material?.title || "Construction material"}
+                    {delivery.material?.title ||
+                      "Construction material"}
                   </Typography>
 
                   <Typography sx={{ color: "#B0B0B0", mb: 1 }}>
@@ -206,11 +367,13 @@ function MyDeliveries() {
                   </Typography>
 
                   <Typography sx={{ color: "#B0B0B0", mb: 1 }}>
-                    Pickup: {delivery.material?.location || "Not specified"}
+                    Pickup:{" "}
+                    {delivery.material?.location || "Not specified"}
                   </Typography>
 
                   <Typography sx={{ color: "#B0B0B0", mb: 2 }}>
-                    Delivery: {delivery.deliveryAddress || "Not specified"}
+                    Delivery:{" "}
+                    {delivery.deliveryAddress || "Not specified"}
                   </Typography>
 
                   <Box
@@ -224,60 +387,228 @@ function MyDeliveries() {
                       mb: 3,
                     }}
                   >
-                    <Typography sx={{ color: "#FFFFFF", fontWeight: 700 }}>
-                      Status: {statusLabel[currentStatus] || currentStatus}
+                    <Typography
+                      sx={{ color: "#FFFFFF", fontWeight: 700 }}
+                    >
+                      Status:{" "}
+                      {statusLabel[currentStatus] || currentStatus}
                     </Typography>
                   </Box>
 
-                  <Box>
-                    {action ? (
+                  {currentStatus === "confirmed" && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography sx={{ color: "#B0B0B0" }}>
+                        Enter the six-digit pickup OTP provided to the
+                        seller.
+                      </Typography>
+
+                      <Box
+                        sx={{
+                          display: "flex",
+                          gap: 2,
+                          flexWrap: "wrap",
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <TextField
+                          label="Pickup OTP"
+                          value={otpValues[delivery._id] || ""}
+                          onChange={(event) =>
+                            handleOtpChange(
+                              delivery._id,
+                              event.target.value
+                            )
+                          }
+                          inputProps={{
+                            inputMode: "numeric",
+                            maxLength: 6,
+                          }}
+                          sx={otpFieldStyles}
+                        />
+
+                        <Button
+                          variant="contained"
+                          disabled={Boolean(updatingId)}
+                          onClick={() =>
+                            handleOtpVerification(
+                              delivery._id,
+                              "pickup"
+                            )
+                          }
+                          sx={actionButtonStyles}
+                        >
+                          {isUpdating ? (
+                            <CircularProgress
+                              size={22}
+                              color="inherit"
+                            />
+                          ) : (
+                            "Verify Pickup OTP"
+                          )}
+                        </Button>
+                      </Box>
+
                       <Button
-                        variant="contained"
+                        variant="outlined"
                         disabled={Boolean(updatingId)}
                         onClick={() =>
-                          handleStatusUpdate(delivery._id, action.value)
+                          handleResendPickupOtp(delivery._id)
                         }
                         sx={{
-                          backgroundColor: "#FF6B00",
-                          color: "#FFFFFF",
+                          borderColor: "#FF6B00",
+                          color: "#FF6B00",
                           fontWeight: 700,
-                          px: 3,
-                          py: 1.2,
-                          "&:hover": { backgroundColor: "#E85F00" },
+                          "&:hover": {
+                            borderColor: "#FF8C33",
+                            backgroundColor: "#22150D",
+                          },
                           "&.Mui-disabled": {
-                            backgroundColor: "#75401F",
-                            color: "#DDDDDD",
+                            borderColor: "#75401F",
+                            color: "#75401F",
                           },
                         }}
                       >
-                        {updatingId === delivery._id ? (
-                          <>
-                            <CircularProgress
-                              size={18}
-                              sx={{ color: "#FFFFFF", mr: 1 }}
-                            />
-                            Updating...
-                          </>
+                        {isUpdating ? (
+                          <CircularProgress
+                            size={20}
+                            sx={{ color: "#FF6B00" }}
+                          />
                         ) : (
-                          action.label
+                          "Resend Pickup OTP"
                         )}
                       </Button>
-                    ) : (
-                      <Typography
+                      
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      disabled={Boolean(updatingId)}
+                      onClick={() => handleCancelDelivery(delivery._id)}
+                      sx={{
+                        borderColor: "#F44336",
+                        color: "#F44336",
+                        fontWeight: 700,
+                        "&:hover": {
+                          borderColor: "#FF6659",
+                          backgroundColor: "#241010",
+                        },
+                      }}
+                    >
+                      {isUpdating ? (
+                        <CircularProgress size={20} color="inherit" />
+                      ) : (
+                        "Cancel Delivery"
+                      )}
+                    </Button>
+
+                    </Box>
+                  )}
+
+                  {currentStatus === "picked_up" && (
+                    <Button
+                      variant="contained"
+                      disabled={Boolean(updatingId)}
+                      onClick={() =>
+                        handleStatusUpdate(
+                          delivery._id,
+                          "in_transit"
+                        )
+                      }
+                      sx={actionButtonStyles}
+                    >
+                      {isUpdating ? (
+                        <CircularProgress
+                          size={22}
+                          color="inherit"
+                        />
+                      ) : (
+                        "Mark as In Transit"
+                      )}
+                    </Button>
+                  )}
+
+                  {currentStatus === "in_transit" && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography sx={{ color: "#B0B0B0" }}>
+                        Enter the six-digit delivery OTP provided to the
+                        buyer.
+                      </Typography>
+
+                      <Box
                         sx={{
-                          color:
-                            currentStatus === "delivered"
-                              ? "#81C784"
-                              : "#B0B0B0",
-                          fontWeight: 700,
+                          display: "flex",
+                          gap: 2,
+                          flexWrap: "wrap",
+                          alignItems: "flex-start",
                         }}
                       >
-                        {currentStatus === "delivered"
-                          ? "Delivery completed"
-                          : "No further status updates available"}
-                      </Typography>
-                    )}
-                  </Box>
+                        <TextField
+                          label="Delivery OTP"
+                          value={otpValues[delivery._id] || ""}
+                          onChange={(event) =>
+                            handleOtpChange(
+                              delivery._id,
+                              event.target.value
+                            )
+                          }
+                          inputProps={{
+                            inputMode: "numeric",
+                            maxLength: 6,
+                          }}
+                          sx={otpFieldStyles}
+                        />
+
+                        <Button
+                          variant="contained"
+                          disabled={Boolean(updatingId)}
+                          onClick={() =>
+                            handleOtpVerification(
+                              delivery._id,
+                              "delivery"
+                            )
+                          }
+                          sx={actionButtonStyles}
+                        >
+                          {isUpdating ? (
+                            <CircularProgress
+                              size={22}
+                              color="inherit"
+                            />
+                          ) : (
+                            "Verify Delivery OTP"
+                          )}
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {currentStatus === "delivered" && (
+                    <Typography
+                      sx={{ color: "#81C784", fontWeight: 700 }}
+                    >
+                      Delivery completed successfully.
+                    </Typography>
+                  )}
+
+                  {currentStatus === "cancelled" && (
+                    <Typography
+                      sx={{ color: "#B0B0B0", fontWeight: 700 }}
+                    >
+                      This delivery was cancelled.
+                    </Typography>
+                  )}
                 </Paper>
               );
             })}
@@ -305,4 +636,3 @@ function MyDeliveries() {
 }
 
 export default MyDeliveries;
-

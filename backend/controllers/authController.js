@@ -146,7 +146,8 @@ try {
             name: user.name,
             email: user.email,
             role: user.role,
-            approvalStatus: user.approvalStatus
+            approvalStatus: user.approvalStatus,
+            transporterStatus: user.transporterStatus
         },
         ...(transporterProfile
             ? { transporter: transporterProfile }
@@ -285,7 +286,12 @@ email: email?.trim().toLowerCase()
     user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
     await user.save();
 
-    const resetLink = `http://localhost:5173/reset-password/${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL;
+
+    if (!frontendUrl) {
+        throw new Error("FRONTEND_URL is not configured");
+    }
+    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
 
     await sendEmail(
         user.email,

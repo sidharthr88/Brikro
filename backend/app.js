@@ -8,10 +8,6 @@ dotenv.config();
 
 const sendEmail = require("./config/email");
 
-
-console.log("EMAIL USER:", process.env.EMAIL_USER);
-console.log("EMAIL PASS EXISTS:", !!process.env.EMAIL_PASS);
-
 const connectDB = require("./config/database");
 const authRoutes = require("./routes/authRoutes")
 const authMiddleware = require("./middleware/authMiddleware");

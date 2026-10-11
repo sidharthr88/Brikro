@@ -1,6 +1,6 @@
 const express = require("express");
 
-const {getAllUsers, getAllMaterials, getAllOrders, getAllTransporters, getDashboardStats, updateUserStatus, updateApprovalStatus, deleteMaterial, createTransporter} = require("../controllers/adminController");
+const {getAllUsers, getAllMaterials, getAllOrders, getAllTransporters, getDashboardStats, updateUserStatus, updateApprovalStatus, reviewMaterial, deleteMaterial, createTransporter} = require("../controllers/adminController");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
@@ -16,5 +16,5 @@ router.get("/transporters", authMiddleware, adminMiddleware, getAllTransporters)
 router.post("/transporters", authMiddleware, adminMiddleware, createTransporter);
 router.delete("/materials/:id", authMiddleware, adminMiddleware, deleteMaterial);
 router.put("/users/:id/approval", authMiddleware, adminMiddleware, updateApprovalStatus);
-
+router.put("/materials/:id/review",authMiddleware,adminMiddleware,reviewMaterial);
 module.exports = router;

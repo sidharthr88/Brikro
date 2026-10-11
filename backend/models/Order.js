@@ -83,8 +83,50 @@ const orderSchema = new mongoose.Schema(
         razorpayOrderId: {
             type: String,
             default: ""
+        },
+        pickupOtpHash: {
+            type: String,
+            default: null,
+            select: false
+        },
+
+        pickupOtpExpiresAt: {
+            type: Date,
+            default: null
+        },
+
+        pickupOtpAttempts: {
+            type: Number,
+            default: 0
+        },
+
+        pickupVerifiedAt: {
+            type: Date,
+            default: null
+        },
+
+        deliveryOtpHash: {
+            type: String,
+            default: null,
+            select: false
+        },
+
+        deliveryOtpExpiresAt: {
+            type: Date,
+            default: null
+        },
+
+        deliveryOtpAttempts: {
+            type: Number,
+            default: 0
+        },
+
+        deliveryVerifiedAt: {
+            type: Date,
+            default: null
         }
     },
+
     {
         timestamps: true
     }

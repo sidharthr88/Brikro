@@ -1,5 +1,5 @@
 const express = require("express");
-const {createOrder, getMyOrders, getSellerOrders, getOrderById, cancelOrder, updateOrderStatus, calculateTransportFee } = require("../controllers/orderController");
+const {createOrder, getMyOrders, getSellerOrders, getOrderById, cancelOrder, updateOrderStatus, calculateTransportFee, getOrderInvoice } = require("../controllers/orderController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -10,5 +10,6 @@ router.get("/:id", authMiddleware, getOrderById);
 router.put("/:id/cancel", authMiddleware, cancelOrder);
 router.put("/:id/status", authMiddleware, updateOrderStatus);
 router.post("/calculate-transport-fee", authMiddleware, calculateTransportFee);
+router.get("/:id/invoice", authMiddleware, getOrderInvoice);
 
 module.exports = router;

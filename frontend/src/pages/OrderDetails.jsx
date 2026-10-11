@@ -252,19 +252,39 @@ function OrderDetails() {
               </Typography>
             </Box>
           )}
+        
+          <Button
+            fullWidth
+            variant="contained"
+            sx={{
+              mt: 4,
+              mb: 2,
+              backgroundColor: "#ff7900",
+              color: "#111",
+              fontWeight: 600,
+              "&:hover": {
+                backgroundColor: "#ff922e",
+              },
+            }}
+            onClick={() => navigate(`/orders/${id}/invoice`)}
+          >
+            Download BRIKRO Invoice
+            
+          </Button>
 
           {canCancel && (
             <Button
               fullWidth
               variant="outlined"
               color="error"
-              sx={{ mt: 4 }}
+              sx={{ mt: 1 }}
               onClick={handleCancelOrder}
               disabled={cancelling}
             >
               {cancelling ? "Cancelling..." : "Cancel Order"}
             </Button>
           )}
+
         </CardContent>
       </Card>
     </Container>

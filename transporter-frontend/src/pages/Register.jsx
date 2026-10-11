@@ -71,8 +71,8 @@ try {
   });
 
   setSuccess(
-    "Registration and transporter profile created successfully. Redirecting to login..."
-  );
+  "Registration submitted successfully. Your transporter account is awaiting admin approval. Redirecting to login..."
+);
 
   setTimeout(() => navigate("/login"), 1500);
 } catch (err) {

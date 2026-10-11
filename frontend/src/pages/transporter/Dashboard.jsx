@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import {Alert,Box,Button,CircularProgress,Container,Grid,Paper,Typography,} from "@mui/material";
+import { useCallback, useEffect, useState } from "react";
+import {Alert,Box,Button,CircularProgress,Container,Grid,Paper,Typography} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 
@@ -11,51 +11,114 @@ function Dashboard() {
   const [availability, setAvailability] = useState("Loading...");
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState("");
+  const [locationMessage, setLocationMessage] = useState("");
+  const [locationError, setLocationError] = useState("");
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [hasLocation, setHasLocation] = useState(false);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const [availableResponse, myDeliveriesResponse] =
-          await Promise.all([
-            api.get("/transporters/available"),
-            api.get("/transporters/my-deliveries"),
-          ]);
+  const fetchDashboardData = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError("");
 
-        const available =
-          availableResponse.data.deliveries || [];
+    try {
+      const [availableResponse, myDeliveriesResponse] =
+        await Promise.all([
+          api.get("/transporters/available"),
+          api.get("/transporters/my-deliveries")
+        ]);
 
-        const assigned =
-          myDeliveriesResponse.data.deliveries || [];
+      const available = availableResponse.data.deliveries || [];
+      const assigned = myDeliveriesResponse.data.deliveries || [];
 
-        const active = assigned.filter(
-          (delivery) =>
-            !["delivered", "cancelled"].includes(delivery.status)
-        );
+      const active = assigned.filter(
+        (delivery) =>
+          !["delivered", "cancelled"].includes(delivery.status)
+      );
+      setAvailableJobs(available.length);
+      setActiveDeliveries(active.length);
+      setAvailability(active.length > 0 ? "Busy" : "Available");
+      setHasLocation(true);
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Unable to load dashboard statistics.";
 
-        setAvailableJobs(available.length);
-        setActiveDeliveries(active.length);
-
-        // The availability endpoint is also used by the backend
-        // to prevent accepting more jobs while a delivery is active.
-        setAvailability(
-          active.length > 0 ? "Busy" : "Available"
-        );
-      } catch (error) {
+      if (message.toLowerCase().includes("location")) {
+        setHasLocation(false);
         setStatsError(
-          error.response?.data?.message ||
-            "Unable to load dashboard statistics."
+          "Set your current location to find nearby deliveries."
         );
-      } finally {
-        setStatsLoading(false);
+      } else {
+        setStatsError(message);
       }
-    };
-
-    fetchDashboardData();
+    } finally {
+      setStatsLoading(false);
+    }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const handleSetLocation = () => {
+    setLocationMessage("");
+    setLocationError("");
+
+    if (!navigator.geolocation) {
+      setLocationError(
+        "Your browser does not support location services."
+      );
+      return;
+    }
+
+    setSavingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+
+          const response = await api.put("/transporters/location", {
+            latitude,
+            longitude
+          });
+
+          setHasLocation(true);
+          setLocationMessage(
+            response.data.message ||
+              "Your current location has been saved."
+          );
+
+          await fetchDashboardData();
+        } catch (error) {
+          setLocationError(
+            error.response?.data?.message ||
+              "Unable to save your location. Please try again."
+          );
+        } finally {
+          setSavingLocation(false);
+        }
+      },
+      (error) => {
+        const messages = {
+          1: "Location permission was denied. Allow location access in your browser settings and try again.",
+          2: "Your location is currently unavailable. Please try again.",
+          3: "Location request timed out. Please try again."
+        };
+
+        setLocationError(
+          messages[error.code] ||
+            "Unable to retrieve your current location."
+        );
+        setSavingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60000
+      }
+    );
   };
 
   const cardStyle = {
@@ -63,7 +126,7 @@ function Dashboard() {
     border: "1px solid #292929",
     borderRadius: 3,
     p: 4,
-    height: "100%",
+    height: "100%"
   };
 
   const clickableCardStyle = {
@@ -72,27 +135,27 @@ function Dashboard() {
     transition: "0.2s",
     "&:hover": {
       borderColor: "#FF6B00",
-      transform: "translateY(-3px)",
-    },
+      transform: "translateY(-3px)"
+    }
   };
 
   const cardNumberStyle = {
     color: "#FF6B00",
     fontWeight: 800,
     fontSize: "1.5rem",
-    mb: 2,
+    mb: 2
   };
 
   const cardTitleStyle = {
     color: "#FFFFFF",
     fontWeight: 700,
     fontSize: "1.2rem",
-    mb: 1,
+    mb: 1
   };
 
   const cardDescriptionStyle = {
     color: "#B0B0B0",
-    lineHeight: 1.7,
+    lineHeight: 1.7
   };
 
   return (
@@ -102,11 +165,10 @@ function Dashboard() {
         backgroundColor: "#0A0A0A",
         color: "#FFFFFF",
         pt: 10,
-        pb: 8,
+        pb: 8
       }}
     >
       <Container maxWidth="lg">
-        {/* Header */}
         <Box
           sx={{
             display: "flex",
@@ -114,7 +176,7 @@ function Dashboard() {
             alignItems: { xs: "flex-start", md: "center" },
             flexDirection: { xs: "column", md: "row" },
             gap: 3,
-            mb: 6,
+            mb: 5
           }}
         >
           <Box>
@@ -123,7 +185,7 @@ function Dashboard() {
                 color: "#FF6B00",
                 fontWeight: 700,
                 letterSpacing: "2px",
-                mb: 1,
+                mb: 1
               }}
             >
               BRIKRO TRANSPORT
@@ -135,7 +197,7 @@ function Dashboard() {
                 color: "#FFFFFF",
                 fontWeight: 800,
                 mb: 1,
-                fontSize: { xs: "2rem", md: "3rem" },
+                fontSize: { xs: "2rem", md: "3rem" }
               }}
             >
               Transporter Dashboard
@@ -148,7 +210,7 @@ function Dashboard() {
 
           <Button
             variant="outlined"
-            onClick={handleLogout}
+            onClick={() => navigate("/materials")}
             sx={{
               borderColor: "#555555",
               color: "#FFFFFF",
@@ -158,51 +220,112 @@ function Dashboard() {
               "&:hover": {
                 borderColor: "#FF6B00",
                 color: "#FF6B00",
-                backgroundColor: "rgba(255,107,0,0.06)",
-              },
+                backgroundColor: "rgba(255,107,0,0.06)"
+              }
             }}
           >
-            Logout
+            Back to BRIKRO
           </Button>
         </Box>
 
+        <Paper
+          elevation={0}
+          sx={{
+            backgroundColor: "#151515",
+            border: "1px solid #292929",
+            borderRadius: 4,
+            p: { xs: 3, md: 4 },
+            mb: 4
+          }}
+        >
+          <Typography
+            variant="h5"
+            sx={{ fontWeight: 700, mb: 1 }}
+          >
+            Your Current Location
+          </Typography>
+
+          <Typography sx={{ color: "#B0B0B0", lineHeight: 1.8, mb: 3 }}>
+            Share your location to find available deliveries near you.
+            Your browser will ask for permission. You do not need to enter
+            coordinates manually.
+          </Typography>
+
+          {locationMessage && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {locationMessage}
+            </Alert>
+          )}
+
+          {locationError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {locationError}
+            </Alert>
+          )}
+
+          <Button
+            variant="contained"
+            onClick={handleSetLocation}
+            disabled={savingLocation}
+            sx={{
+              backgroundColor: "#FF6B00",
+              color: "#FFFFFF",
+              px: 3,
+              py: 1.3,
+              fontWeight: 700,
+              "&:hover": { backgroundColor: "#E85F00" }
+            }}
+          >
+            {savingLocation ? (
+              <>
+                <CircularProgress
+                  size={19}
+                  sx={{ color: "#FFFFFF", mr: 1 }}
+                />
+                Getting Location...
+              </>
+            ) : (
+              "Use My Current Location"
+            )}
+          </Button>
+
+          {hasLocation && (
+            <Typography sx={{ color: "#66BB6A", mt: 2 }}>
+              Location is available for delivery matching.
+            </Typography>
+          )}
+        </Paper>
+
         {statsError && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Alert severity="info" sx={{ mb: 3 }}>
             {statsError}
           </Alert>
         )}
 
-        {/* Dashboard summary cards */}
         <Grid container spacing={3} sx={{ mb: 5 }}>
           <Grid item xs={12} md={4}>
             <Paper elevation={0} sx={cardStyle}>
               <Typography sx={{ color: "#B0B0B0", mb: 2 }}>
                 Availability
               </Typography>
-
               <Typography
                 sx={{
                   color: "#FFFFFF",
                   fontSize: "2rem",
                   fontWeight: 800,
-                  mb: 1,
+                  mb: 1
                 }}
               >
                 {statsLoading ? (
-                  <CircularProgress
-                    size={24}
-                    sx={{ color: "#FF6B00" }}
-                  />
+                  <CircularProgress size={24} sx={{ color: "#FF6B00" }} />
                 ) : (
                   availability
                 )}
               </Typography>
-
               <Typography
                 sx={{
-                  color:
-                    availability === "Busy" ? "#FFB74D" : "#66BB6A",
-                  fontWeight: 700,
+                  color: availability === "Busy" ? "#FFB74D" : "#66BB6A",
+                  fontWeight: 700
                 }}
               >
                 {statsLoading
@@ -219,20 +342,18 @@ function Dashboard() {
               <Typography sx={{ color: "#B0B0B0", mb: 2 }}>
                 Available Jobs
               </Typography>
-
               <Typography
                 sx={{
                   color: "#FFFFFF",
                   fontSize: "2rem",
                   fontWeight: 800,
-                  mb: 1,
+                  mb: 1
                 }}
               >
                 {statsLoading ? "—" : availableJobs}
               </Typography>
-
               <Typography sx={{ color: "#B0B0B0" }}>
-                View requests ready to be accepted
+                Requests ready to be accepted
               </Typography>
             </Paper>
           </Grid>
@@ -242,18 +363,16 @@ function Dashboard() {
               <Typography sx={{ color: "#B0B0B0", mb: 2 }}>
                 Active Deliveries
               </Typography>
-
               <Typography
                 sx={{
                   color: "#FFFFFF",
                   fontSize: "2rem",
                   fontWeight: 800,
-                  mb: 1,
+                  mb: 1
                 }}
               >
                 {statsLoading ? "—" : activeDeliveries}
               </Typography>
-
               <Typography sx={{ color: "#B0B0B0" }}>
                 Accepted deliveries not yet completed
               </Typography>
@@ -268,7 +387,7 @@ function Dashboard() {
             border: "1px solid #292929",
             borderRadius: 4,
             p: { xs: 4, md: 5 },
-            mb: 5,
+            mb: 5
           }}
         >
           <Typography
@@ -276,7 +395,7 @@ function Dashboard() {
               color: "#FF6B00",
               fontWeight: 700,
               letterSpacing: "1px",
-              mb: 1,
+              mb: 1
             }}
           >
             DELIVERY OPERATIONS
@@ -288,7 +407,7 @@ function Dashboard() {
               color: "#FFFFFF",
               fontWeight: 800,
               mb: 2,
-              fontSize: { xs: "1.6rem", md: "2.125rem" },
+              fontSize: { xs: "1.6rem", md: "2.125rem" }
             }}
           >
             Ready for your next delivery?
@@ -299,7 +418,7 @@ function Dashboard() {
               color: "#B0B0B0",
               maxWidth: "700px",
               lineHeight: 1.8,
-              mb: 4,
+              mb: 4
             }}
           >
             View available delivery requests, accept jobs and manage
@@ -310,14 +429,14 @@ function Dashboard() {
             <Button
               variant="contained"
               size="large"
-              onClick={() => navigate("/available-deliveries")}
+              onClick={() => navigate("/transporter/available-deliveries")}
               sx={{
                 backgroundColor: "#FF6B00",
                 color: "#FFFFFF",
                 px: 4,
                 py: 1.5,
                 fontWeight: 800,
-                "&:hover": { backgroundColor: "#E85F00" },
+                "&:hover": { backgroundColor: "#E85F00" }
               }}
             >
               View Available Deliveries
@@ -335,8 +454,8 @@ function Dashboard() {
                 fontWeight: 800,
                 "&:hover": {
                   borderColor: "#FF8A33",
-                  backgroundColor: "rgba(255,107,0,0.08)",
-                },
+                  backgroundColor: "rgba(255,107,0,0.08)"
+                }
               }}
             >
               My Deliveries
@@ -344,7 +463,6 @@ function Dashboard() {
           </Box>
         </Paper>
 
-        {/* Navigation cards */}
         <Grid container spacing={3}>
           <Grid item xs={12} md={4}>
             <Paper
@@ -359,9 +477,7 @@ function Dashboard() {
               <Typography sx={cardDescriptionStyle}>
                 Find delivery requests that are ready to be accepted.
               </Typography>
-              <Typography
-                sx={{ color: "#FF6B00", fontWeight: 700, mt: 3 }}
-              >
+              <Typography sx={{ color: "#FF6B00", fontWeight: 700, mt: 3 }}>
                 View requests →
               </Typography>
             </Paper>
@@ -370,7 +486,7 @@ function Dashboard() {
           <Grid item xs={12} md={4}>
             <Paper
               elevation={0}
-              onClick={() => navigate("/my-deliveries")}
+              onClick={() => navigate("/transporter/my-deliveries")}
               sx={clickableCardStyle}
             >
               <Typography sx={cardNumberStyle}>02</Typography>
@@ -378,12 +494,9 @@ function Dashboard() {
                 Manage Deliveries
               </Typography>
               <Typography sx={cardDescriptionStyle}>
-                View accepted jobs and update their progress from pickup
-                to delivery.
+                Track accepted jobs from pickup through delivery.
               </Typography>
-              <Typography
-                sx={{ color: "#FF6B00", fontWeight: 700, mt: 3 }}
-              >
+              <Typography sx={{ color: "#FF6B00", fontWeight: 700, mt: 3 }}>
                 Manage jobs →
               </Typography>
             </Paper>
@@ -392,7 +505,7 @@ function Dashboard() {
           <Grid item xs={12} md={4}>
             <Paper
               elevation={0}
-              onClick={() => navigate("/my-deliveries")}
+              onClick={() => navigate("/transporter/my-deliveries")}
               sx={clickableCardStyle}
             >
               <Typography sx={cardNumberStyle}>03</Typography>
@@ -400,11 +513,9 @@ function Dashboard() {
                 Delivery History
               </Typography>
               <Typography sx={cardDescriptionStyle}>
-                Review your completed and previous delivery assignments.
+                Review completed and previous delivery assignments.
               </Typography>
-              <Typography
-                sx={{ color: "#FF6B00", fontWeight: 700, mt: 3 }}
-              >
+              <Typography sx={{ color: "#FF6B00", fontWeight: 700, mt: 3 }}>
                 View deliveries →
               </Typography>
             </Paper>

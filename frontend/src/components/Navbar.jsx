@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppBar, Toolbar, Typography, Button, Box, Avatar, Menu, MenuItem, Divider } from "@mui/material";
+import {AppBar,Toolbar,Typography,Button,Box,Avatar,Menu,MenuItem,Divider,} from "@mui/material";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 
@@ -10,7 +10,7 @@ function Navbar() {
   const [user, setUser] = useState(null);
 
   const token = localStorage.getItem("token");
-  
+
   useEffect(() => {
     const fetchUser = async () => {
       if (!token) {
@@ -23,6 +23,7 @@ function Navbar() {
         setUser(response.data.user);
       } catch (error) {
         console.error("Failed to fetch user:", error);
+        setUser(null);
       }
     };
 
@@ -40,8 +41,14 @@ function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     handleClose();
+    setUser(null);
     navigate("/");
     window.location.reload();
+  };
+
+  const handleNavigation = (path) => {
+    handleClose();
+    navigate(path);
   };
 
   return (
@@ -76,27 +83,15 @@ function Navbar() {
         </Typography>
 
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-          <Button
-            component={Link}
-            to="/materials"
-            color="inherit"
-          >
+          <Button component={Link} to="/materials" color="inherit">
             Browse
           </Button>
 
-          <Button 
-            component={Link}
-            to="/sell"
-            color="inherit"
-          >
+          <Button component={Link} to="/sell" color="inherit">
             Sell
           </Button>
 
-          <Button 
-            component={Link}
-            to="/my-orders"
-            color="inherit"
-          >
+          <Button component={Link} to="/my-orders" color="inherit">
             My Orders
           </Button>
 
@@ -122,7 +117,7 @@ function Navbar() {
                     fontWeight: 700,
                   }}
                 >
-                  {user?.name.charAt(0).toUpperCase()}
+                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
                 </Avatar>
 
                 <Typography
@@ -144,6 +139,7 @@ function Navbar() {
                     mt: 1,
                     width: 280,
                     backgroundColor: "#151515",
+                    color: "#FFFFFF",
                     border: "1px solid #262626",
                     borderRadius: 3,
                   },
@@ -166,17 +162,18 @@ function Navbar() {
                         fontWeight: 700,
                       }}
                     >
-                      {user?.name?.charAt(0).toUpperCase()}
+                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
                     </Avatar>
 
-                    <Box>
+                    <Box sx={{ minWidth: 0 }}>
                       <Typography
                         sx={{
                           fontWeight: 600,
                           color: "#FFFFFF",
+                          overflowWrap: "anywhere",
                         }}
                       >
-                        {user?.name}
+                        {user?.name || "Loading profile..."}
                       </Typography>
 
                       <Typography
@@ -184,9 +181,10 @@ function Navbar() {
                           color: "text.secondary",
                           fontSize: "0.8rem",
                           mt: 0.3,
+                          overflowWrap: "anywhere",
                         }}
                       >
-                        {user?.email}
+                        {user?.email || ""}
                       </Typography>
                     </Box>
                   </Box>
@@ -194,34 +192,35 @@ function Navbar() {
 
                 <Divider sx={{ borderColor: "#262626" }} />
 
-                <MenuItem onClick={() => navigate("/seller-orders")}>
+                <MenuItem
+                  onClick={() => handleNavigation("/seller-orders")}
+                >
                   Seller Orders
                 </MenuItem>
+
                 <MenuItem
-                  onClick={() => {
-                    handleClose();
-                    navigate("/my-listings");
-                  }}
+                  onClick={() => handleNavigation("/my-listings")}
                 >
                   My Listings
                 </MenuItem>
 
                 <MenuItem
-                  onClick={() => {
-                    handleClose();
-                    navigate("/my-orders");
-                  }}
+                  onClick={() => handleNavigation("/my-orders")}
                 >
                   My Orders
+                </MenuItem>
+
+                <MenuItem
+                  onClick={() => handleNavigation("/transporter/dashboard")}
+                >
+                  BRIKRO Transporter
                 </MenuItem>
 
                 <Divider sx={{ borderColor: "#262626" }} />
 
                 <MenuItem
                   onClick={handleLogout}
-                  sx={{
-                    color: "#ff5252",
-                  }}
+                  sx={{ color: "#ff5252" }}
                 >
                   Logout
                 </MenuItem>
