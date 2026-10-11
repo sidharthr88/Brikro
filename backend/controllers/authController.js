@@ -197,22 +197,21 @@ const { email, password } = req.body;
             message: "Invalid email or password"
         });
     }
-
-    try {
-        await sendEmail(
-            user.email,
-            "New Login to Your BRIKRO Account",
-            `
-                <h2>Login Successful</h2>
-                <p>Hello ${user.name},</p>
-                <p>Your BRIKRO account was just logged in successfully.</p>
-                <p>If this was not you, please reset your password immediately.</p>
-                <p>Smart Supplies. Smart Savings. Smarter Sites.</p>
-            `
-        );
-    } catch (emailError) {
+  
+    sendEmail(
+        user.email,
+        "New Login to Your BRIKRO Account",
+        `
+            <h2>Login Successful</h2>
+            <p>Hello ${user.name},</p>
+            <p>Your BRIKRO account was just logged in successfully.</p>
+            <p>If this was not you, please reset your password immediately.</p>
+            <p>Smart Supplies. Smart Savings. Smarter Sites.</p>
+        `
+    ).catch((emailError) => {
         console.error("Login email failed:", emailError.message);
-    }
+    });
+
 
     const token = jwt.sign(
         {
