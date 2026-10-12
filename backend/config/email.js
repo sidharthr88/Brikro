@@ -1,24 +1,39 @@
-const nodemailer = require("nodemailer");
-
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: false,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-    }
-});
-
 const sendEmail = async (to, subject, html) => {
-    const info = await transporter.sendMail({
-        from: process.env.EMAIL_FROM,
-        to,
-        subject,
-        html
+    const apiKey = process.env.BREVO_API_KEY;
+
+    if (!apiKey) {
+        throw new Error("BREVO_API_KEY is not configured");
+    }
+
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+            accept: "application/json",
+            "api-key": apiKey,
+            "content-type": "application/json"
+        },
+        body: JSON.stringify({
+            sender: {
+                name: "BRIKRO",
+                email: "sidh4gaming@gmail.com"
+            },
+            to: [{ email: to }],
+            subject,
+            htmlContent: html
+        })
     });
 
-    return info;
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(
+            `Brevo API error (${response.status}): ${
+                result.message || JSON.stringify(result)
+            }`
+        );
+    }
+
+    return result;
 };
 
 module.exports = sendEmail;
